@@ -2,12 +2,41 @@
 <html>
 	<head>
 		<title>Test</title>
+		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/skeleton/2.0.4/skeleton.min.css" />
+		<style>
+			canvas {
+				border: 2px solid;
+			}
+
+			pre#messages {
+				color: red;
+			}
+		</style>
 	</head>
 	<body>
-		<canvas id="board" width="400" height="400" style="position:absolute;top:10%;left:10%;border:2px solid;"></canvas>
-		<!--<img id="canvasimg" style="position:absolute;top:10%;left:52%;" style="display:none;">-->
-		<input type="button" value="clear" id="clr" size="23">
-		<input type="button" value="submit" id="sub" size="23">
+		<div class="container">
+			<div class="row">
+				<div class="nine columns">
+					<pre id="messages"></pre>
+				</div>
+				<div class="three columns">
+					<pre id="cd"></pre>
+				</div>
+			</div>
+			<div class="row">
+				<div class="seven columns">
+					<canvas id="board" width="400" height="400"></canvas>
+				</div>
+				<div id="tc" class="five columns">
+				</div>
+			</div>
+			<div class="row">
+				<div class="seven columns">
+					<input type="button" value="clear" id="clr">
+					<input type="button" value="submit" id="sub">
+				</div>
+			</div>
+		</div>
 		<script src="frontend.js"></script>
 	</body>
 </html>

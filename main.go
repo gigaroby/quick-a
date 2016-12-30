@@ -1,17 +1,9 @@
 package main
 
 import (
-	"bytes"
-	"encoding/base64"
 	"flag"
-	"fmt"
 	"log"
 	"net/http"
-
-	"crypto/md5"
-	"image/png"
-	"io/ioutil"
-	"strings"
 )
 
 const (
@@ -20,54 +12,30 @@ const (
 )
 
 var (
-	htmlRoot = flag.String("html-root", "html-root", "directory containing files to serve")
+	htmlRoot       = flag.String("html-root", "html-root", "directory containing files to serve")
+	metadataPath   = flag.String("metadata", "METADATA", "file containing metadata about the model")
+	modelServerURL = flag.String("model-server-url", "http://localhost:8090", "model server URL")
 )
-
-func badRequest(rw http.ResponseWriter, msg string) {
-	rw.WriteHeader(http.StatusBadRequest)
-	rw.Write([]byte(msg))
-}
-
-func handleImage(rw http.ResponseWriter, req *http.Request) {
-	if err := req.ParseForm(); err != nil {
-		badRequest(rw, "error parsing data")
-		return
-	}
-
-	parts := strings.SplitN(req.Form.Get("image"), ",", 2)
-	if len(parts) != 2 {
-		badRequest(rw, "error decoding image")
-		return
-	}
-	imageBase64 := parts[1]
-	// TODO: limit size of the image
-	dec, err := base64.StdEncoding.DecodeString(imageBase64)
-	if err != nil {
-		log.Println(err)
-		badRequest(rw, "error decoding image")
-		return
-	}
-	r := bytes.NewReader(dec)
-	config, err := png.DecodeConfig(r)
-	if err != nil || config.Height > maxImageHeight || config.Width > maxImageWidth {
-		badRequest(rw, "invalid image")
-		return
-	}
-
-	name := fmt.Sprintf("images/%x.png", md5.Sum(dec))
-	err = ioutil.WriteFile(name, dec, 0666)
-	if err != nil {
-		log.Printf("error writing image to file: %s\n", err)
-		rw.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	rw.WriteHeader(http.StatusOK)
-}
 
 func main() {
 	flag.Parse()
+
+	categories, err := getCategories(*metadataPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	http.Handle("/", http.FileServer(http.Dir(*htmlRoot)))
-	http.Handle("/image", http.HandlerFunc(handleImage))
+	http.Handle("/classify", &classifyHandler{
+		MaxImageHeigth: maxImageHeight,
+		MaxImageWidth:  maxImageWidth,
+
+		modelServerURL: *modelServerURL,
+		categories:     categories,
+	})
+
+	http.Handle("/categories", &categoryHandler{
+		categories: categories,
+	})
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }

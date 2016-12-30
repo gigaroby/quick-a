@@ -1,2 +1,9 @@
 .DS_Store
 images
+
+# ignore metadata file
+METADATA
+
+# ignore compiled stuff
+html-root/frontend.js*
+quick-a
