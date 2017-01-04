@@ -6,11 +6,12 @@ quick-a:
 	go build github.com/gigaroby/quick-a
 
 frontend:
-	$(MAKE) -C html-root frontend.js
+	+$(MAKE) -C html-root frontend.js
 
 clean:
 	rm -f quick-a
-	$(MAKE) -C html-root clean
+	# http://stackoverflow.com/questions/1139271/makefiles-with-source-files-in-different-directories
+	+$(MAKE) -C html-root clean
 
 run: all
 	./quick-a
