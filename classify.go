@@ -7,21 +7,19 @@ import (
 	"encoding/json"
 	"errors"
 	"hash/fnv"
+	"image"
+	"image/color"
 	"image/png"
 	"io/ioutil"
 	"log"
+	"mime/multipart"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/gigaroby/quick-a/imageutil"
 	"github.com/gigaroby/quick-a/model"
-)
-
-var (
-	malformedDataURL = errors.New("malformed data URL")
-	invalidImage     = errors.New("invalid image")
 )
 
 const (
@@ -50,50 +48,76 @@ func computeB64Size(size int) int {
 	return ((size + 2) / 3) * 4
 }
 
-func (c *classifyHandler) checkImage(dataURL string) (original string, data []byte, err error) {
+func (c *classifyHandler) processImage(dataURL string) (img image.Image, err error) {
 	parts := strings.SplitN(dataURL, ",", 2)
 	if len(parts) != 2 {
-		return "", nil, malformedDataURL
+		return nil, errors.New("malformed data URL")
 	}
 
 	b64 := parts[1]
 	// image is too big. computeB64Size computes the max size of the image when converted to base64
 	if len(b64) > computeB64Size(c.MaxImageWidth*c.MaxImageHeigth*4) {
-		return "", nil, invalidImage
+		return nil, errors.New("image too large")
 	}
 
 	dec, err := base64.StdEncoding.DecodeString(b64)
 	if err != nil {
-		return "", nil, err
+		return nil, err
 	}
 
-	config, err := png.DecodeConfig(bytes.NewReader(dec))
-	if err != nil || config.Height > c.MaxImageHeigth || config.Width > c.MaxImageWidth {
-		return "", nil, invalidImage
+	image, err := png.Decode(bytes.NewReader(dec))
+	if err != nil {
+		return nil, err
 	}
 
-	return b64, dec, nil
+	// converts the image into a format the backend can understand
+	return imageutil.ConvertTo(imageutil.ConvertTo(image, imageutil.AlphaAsWhite), color.GrayModel), nil
 }
 
-func (c *classifyHandler) saveOriginal(basePath, category string, data []byte) {
+func (c *classifyHandler) saveOriginal(basePath, category string, pngData []byte) {
 	dir := filepath.Join(basePath, category)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		log.Printf("error saving original image: %s\n", err)
 		return
 	}
 	h := fnv.New32()
-	h.Write(data)
+	h.Write(pngData)
 	name := hex.EncodeToString(h.Sum(nil)) + ".png"
-	if err := ioutil.WriteFile(filepath.Join(dir, name), data, 0644); err != nil {
+
+	if err := ioutil.WriteFile(filepath.Join(dir, name), pngData, 0644); err != nil {
 		log.Printf("error saving original image: %s\n", err)
 		return
 	}
 }
 
-func (c *classifyHandler) classify(b64Image string) (model.Predictions, error) {
-	res, err := http.PostForm(c.modelServerURL+"/classify/", url.Values{
-		"image": []string{b64Image},
-	})
+// prepareImagePOST creates a http request that will send image data as file
+func prepareImagePOST(endpoint string, imageData []byte) (*http.Request, error) {
+	b64 := base64.StdEncoding.EncodeToString(imageData)
+	body := new(bytes.Buffer)
+	mw := multipart.NewWriter(body)
+	w, err := mw.CreateFormFile("image", "image")
+	if err != nil {
+		return nil, err
+	}
+	_, err = w.Write([]byte(b64))
+	if err != nil {
+		return nil, err
+	}
+	ct := mw.FormDataContentType()
+	mw.Close()
+
+	req, _ := http.NewRequest("POST", endpoint, body)
+	req.Header.Set("Content-Type", ct)
+	return req, nil
+}
+
+func (c *classifyHandler) classify(imageData []byte) (model.Predictions, error) {
+	req, err := prepareImagePOST(c.modelServerURL+"/classify/", imageData)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +136,7 @@ func (c *classifyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	b64, data, err := c.checkImage(req.Form.Get("image"))
+	image, err := c.processImage(req.Form.Get("image"))
 	if err != nil {
 		http.Error(rw, "invalid image", http.StatusBadRequest)
 		return
@@ -123,9 +147,17 @@ func (c *classifyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		category = "unknown"
 	}
 
-	go c.saveOriginal("images", category, data)
+	imageData := new(bytes.Buffer)
+	err = png.Encode(imageData, image)
+	if err != nil {
+		log.Printf("error encoding image: %s\n", err)
+		http.Error(rw, "internal server error", http.StatusInternalServerError)
+		return
+	}
 
-	top3, err := c.classify(b64)
+	go c.saveOriginal("images", category, imageData.Bytes())
+
+	top3, err := c.classify(imageData.Bytes())
 	if err != nil {
 		log.Printf("error classifying image: %s\n", err)
 		http.Error(rw, "internal server error", http.StatusInternalServerError)
