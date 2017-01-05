@@ -1,4 +1,4 @@
-frontend.js:
+frontend.js: clean
 	gopherjs build -m github.com/gigaroby/quick-a/frontend/
 
 clean:

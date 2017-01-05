@@ -15,53 +15,49 @@ func New(canvas *dom.HTMLCanvasElement) *S {
 type S struct {
 	canvas *dom.HTMLCanvasElement
 	ctx    *dom.CanvasRenderingContext2D
-	// previous x and y
-	px, py  int
+
 	drawing bool
 }
 
-func (s *S) handleEvent(event string, handler func(px, py int, cx, cy int)) {
+func (s *S) handleEvent(event string, handler func(x, y int)) {
 	s.canvas.AddEventListener(event, false, func(de dom.Event) {
 		rect := s.canvas.GetBoundingClientRect()
 		me := de.(*dom.MouseEvent)
-		cx := me.ClientX - int(rect.Left)
-		cy := me.ClientY - int(rect.Top)
-		handler(s.px, s.py, cx, cy)
-		s.px = cx
-		s.py = cy
+		x := me.ClientX - int(rect.Left)
+		y := me.ClientY - int(rect.Top)
+		handler(x, y)
 	})
 }
 
 func (s *S) init() {
+	s.ctx.LineWidth = 5
+	s.ctx.LineJoin = "round"
+	s.ctx.LineCap = "round"
+	s.ctx.StrokeStyle = "black"
+
 	s.handleEvent("mousemove", s.handleMove)
 	s.handleEvent("mousedown", s.handleDown)
 	s.handleEvent("mouseup", s.handleUpOut)
 	s.handleEvent("mouseout", s.handleUpOut)
 }
 
-func (s *S) handleMove(px, py int, cx, cy int) {
+func (s *S) handleMove(x, y int) {
 	if !s.drawing {
 		return
 	}
-	s.drawTo(px, py, cx, cy)
-}
-
-func (s *S) handleUpOut(px, py int, cx, cy int) {
-	s.drawing = false
-}
-
-func (s *S) handleDown(px, py int, cx, cy int) {
-	s.drawing = true
-}
-
-func (s *S) drawTo(px, py int, cx, cy int) {
-	s.ctx.BeginPath()
-	s.ctx.MoveTo(px, py)
-	s.ctx.LineTo(cx, cy)
-	s.ctx.StrokeStyle = "black"
-	s.ctx.LineWidth = 5
+	s.ctx.LineTo(x, y)
 	s.ctx.Stroke()
+}
+
+func (s *S) handleUpOut(x, y int) {
+	s.drawing = false
 	s.ctx.ClosePath()
+}
+
+func (s *S) handleDown(x, y int) {
+	s.ctx.BeginPath()
+	s.ctx.MoveTo(x, y)
+	s.drawing = true
 }
 
 func (s *S) Clear() {

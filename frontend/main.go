@@ -88,6 +88,8 @@ func main() {
 	clear.AddEventListener("click", false, func(d dom.Event) {
 		go func() {
 			surface.Clear()
+			messages.SetInnerHTML("")
+			tableContainer.SetInnerHTML("")
 		}()
 	})
 }
