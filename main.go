@@ -7,8 +7,8 @@ import (
 )
 
 const (
-	maxImageHeight = 400
-	maxImageWidth  = 400
+	maxImageHeight = 600
+	maxImageWidth  = 1000
 )
 
 var (
