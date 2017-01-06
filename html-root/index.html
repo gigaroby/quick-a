@@ -1,42 +1,74 @@
-
 <html>
 	<head>
-		<title>Test</title>
+		<title>Quick-A</title>
 		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/skeleton/2.0.4/skeleton.min.css" />
-		<style>
-			canvas {
-				border: 2px solid;
-			}
+		<link rel="stylesheet" href="css/quick-a.css" />
 
-			pre#messages {
-				color: red;
-			}
-		</style>
 	</head>
-	<body>
+    <!-- removing the callback will prevent the canvas from deleting its content
+     when the browser get resized, but it will make the canvas itself unusable -->
+    <body onresize="resize_canvas()">
 		<div class="container">
-			<div class="row">
-				<div class="nine columns">
-					<pre id="messages"></pre>
-				</div>
-				<div class="three columns">
-					<pre id="cd"></pre>
-				</div>
+
+            <div class="row">
+                <div class="title twelve columns">
+                    <h1>Quick-A!</h1>
+                </div>
 			</div>
-			<div class="row">
-				<div class="seven columns">
-					<canvas id="board" width="400" height="400"></canvas>
-				</div>
-				<div id="tc" class="five columns">
-				</div>
+
+            <div class="row">
+                <div class="six columns">
+                    <h4>[<span class="countdown">10</span>] Draw a <strong>snake</strong></h4>
+                </div>
+
+                <div class="controls six columns">
+                    <input type="button" value="clear" id="clr">
+                    <input type="button" value="submit" id="sub">
+                </div>
+            </div>
+
+            <div class="row">
+				<div class="twelve columns">
+                    <div class="canvas-container">
+                        <canvas id="board" height="100%" width="100%"></canvas>
+                    </div>
+                </div>
 			</div>
-			<div class="row">
-				<div class="seven columns">
-					<input type="button" value="clear" id="clr">
-					<input type="button" value="submit" id="sub">
-				</div>
+
+            <div class="result row">
+                <h3>I see a <span>Sword</span> </h3>
+            </div>
+
+            <div class="row">
+				<div class="debug twelve columns">
+                    <div id="tc">
+                    </div>
 			</div>
+
+            <div class="row">
+                <div class="nine columns">
+                    <pre id="messages"></pre>
+                </div>
+                <div class="three columns">
+                    <pre id="cd"></pre>
+                </div>
+            </div>
+
 		</div>
+
 		<script src="frontend.js"></script>
+        <script type="text/javascript">
+            function resize_canvas(){
+                var canvas = document.getElementById("board");
+
+                // Make it visually fill the positioned parent
+                canvas.style.width ='100%';
+                canvas.style.height='100%';
+                // ...then set the internal size to match
+                canvas.width  = canvas.offsetWidth;
+                canvas.height = canvas.offsetHeight;
+            }
+            resize_canvas();
+        </script>
 	</body>
 </html>
