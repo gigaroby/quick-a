@@ -19,3 +19,4 @@ run: all
 deps:
 	go get -u github.com/gopherjs/gopherjs
 	go get -u honnef.co/go/js/dom
+	go get github.com/gigaroby/quick-a/frontend
