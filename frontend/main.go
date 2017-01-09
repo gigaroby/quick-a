@@ -1,95 +1,69 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
-	"html/template"
-	"net/http"
-	"net/url"
-
-	"encoding/json"
 
 	"time"
 
+	"github.com/gigaroby/quick-a/frontend/session"
 	"github.com/gigaroby/quick-a/frontend/surface"
-	"github.com/gigaroby/quick-a/model"
 	"honnef.co/go/js/dom"
 )
 
 var (
 	document = dom.GetWindow().Document()
 	canvas   = document.GetElementByID("board").(*dom.HTMLCanvasElement)
-	submit   = document.GetElementByID("sub").(*dom.HTMLInputElement)
-	clear    = document.GetElementByID("clr").(*dom.HTMLInputElement)
 
-	messages  = document.GetElementByID("messages").(*dom.HTMLPreElement)
-	countdown = document.GetElementByID("cd").(*dom.HTMLPreElement)
+	messages = document.GetElementByID("messages").(*dom.HTMLPreElement)
 
-	tableContainer = document.GetElementByID("tc").(*dom.HTMLDivElement)
-)
+	game  = document.GetElementByID("game").(*dom.HTMLDivElement)
+	wait  = document.GetElementByID("wait").(*dom.HTMLDivElement)
+	final = document.GetElementByID("final").(*dom.HTMLDivElement)
 
-var (
-	tc = `<table>
-	  <thead>
-        <tr>
-		  <td>category</td>
-		  <td>precision</td>
-		</tr>
-	  </thead>
-	  <tbody>
-	  	{{ range $idx, $elem := . }}
-		  <tr>
-		    <td>{{ $elem.CategoryName }}</td>
-		    <td>{{ $elem.Confidence }}</td>
-		  </tr>
-        {{ end }}
-	  </tbody>
-	</table>`
-	table = template.Must(template.New("table").Parse(tc))
+	fReload  = document.GetElementByID("f_reload").(*dom.HTMLInputElement)
+	fCorrect = document.GetElementByID("f_correct").(*dom.HTMLSpanElement)
+	fWrong   = document.GetElementByID("f_wrong").(*dom.HTMLSpanElement)
+	fMessage = document.GetElementByID("f_message").(*dom.HTMLSpanElement)
+
+	wInstructions = document.GetElementByID("w_instructions").(*dom.HTMLSpanElement)
+	wMessage      = document.GetElementByID("w_message").(*dom.HTMLSpanElement)
+	wReady        = document.GetElementByID("w_ready").(*dom.HTMLInputElement)
+
+	predictions  = document.GetElementByID("predictions").(*dom.HTMLSpanElement)
+	instructions = document.GetElementByID("instructions").(*dom.HTMLSpanElement)
+	countdown    = document.GetElementByID("countdown").(*dom.HTMLSpanElement)
+
+	clear = document.GetElementByID("clr").(*dom.HTMLInputElement)
 )
 
 func showError(err error) {
-	messages.SetInnerHTML(err.Error())
-}
-
-func renderTable(pred model.Predictions) {
-	buf := new(bytes.Buffer)
-	table.Execute(buf, pred)
-	tableContainer.SetInnerHTML(buf.String())
+	messages.SetInnerHTML(fmt.Sprintf("[%s] %s", time.Now().String(), err.Error()))
 }
 
 func main() {
-	println("ready")
 	surface := surface.New(canvas)
-	submit.AddEventListener("click", false, func(d dom.Event) {
-		go func() {
-			res, err := http.PostForm("classify", url.Values{
-				"image":    []string{surface.Data()},
-				"category": []string{"cat"},
-			})
-			if err != nil {
-				showError(err)
-				return
-			}
-			defer res.Body.Close()
-			if res.StatusCode != http.StatusOK {
-				showError(fmt.Errorf("[%s] failed to contact backend, response code was %d %s", time.Now().String(), res.StatusCode, http.StatusText(res.StatusCode)))
-				return
-			}
+	sess, err := session.New(6, surface, instructions, predictions, countdown, wInstructions, wMessage, fCorrect, fWrong, fMessage, game, wait, final)
+	if err != nil {
+		showError(err)
+		return
+	}
 
-			predictions := model.Predictions{}
-			if err = json.NewDecoder(res.Body).Decode(&predictions); err != nil {
-				showError(err)
-				return
-			}
-			renderTable(predictions)
+	dom.GetWindow().AddEventListener("resize", false, func(d dom.Event) {
+		surface.Resize()
+	})
+
+	wReady.AddEventListener("click", false, func(d dom.Event) {
+		go func() {
+			sess.NextRound()
 		}()
 	})
+
 	clear.AddEventListener("click", false, func(d dom.Event) {
-		go func() {
-			surface.Clear()
-			messages.SetInnerHTML("")
-			tableContainer.SetInnerHTML("")
-		}()
+		surface.Clear()
+		messages.SetInnerHTML("")
+	})
+
+	fReload.AddEventListener("click", false, func(d dom.Event) {
+		dom.GetWindow().Location().Call("reload")
 	})
 }

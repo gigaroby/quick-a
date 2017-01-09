@@ -2,10 +2,14 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"math/rand"
 	"net/http"
-	"os"
+	"strconv"
+	"strings"
+
+	"github.com/gigaroby/quick-a/model"
 )
 
 const CategoriesPerGame = 6
@@ -14,14 +18,18 @@ type metadata struct {
 	Categories map[int]string `json:"categories"`
 }
 
-func getCategories(metadataPath string) (map[int]string, error) {
-	f, err := os.Open(metadataPath)
+func getCategories(modelServerURL string) (map[int]string, error) {
+	res, err := http.Get(strings.TrimRight(modelServerURL, "/") + "/metadata/")
 	if err != nil {
 		return nil, err
 	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("metadata endpoint returned %d: %s", res.StatusCode, http.StatusText(res.StatusCode))
+	}
 
 	meta := metadata{}
-	err = json.NewDecoder(f).Decode(&meta)
+	err = json.NewDecoder(res.Body).Decode(&meta)
 	if err != nil {
 		return nil, err
 	}
@@ -36,28 +44,26 @@ type categoryHandler struct {
 }
 
 func (c *categoryHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	cats := make([]int, 0)
-	for k, _ := range c.categories {
-		cats = append(cats, k)
+	requested, err := strconv.Atoi(req.URL.Query().Get("n"))
+	if err != nil {
+		requested = 6
+	}
+	if requested > len(c.categories) {
+		requested = len(c.categories)
 	}
 
-	if len(cats) < 6 {
-		rw.WriteHeader(http.StatusInternalServerError)
-		log.Fatalf(
-			"not enough categories, expcted at least %d, got %d",
-			CategoriesPerGame, len(cats))
+	cat := make(model.Categories, 0)
+	for k, v := range c.categories {
+		cat = append(cat, model.Category{Index: k, Name: v})
 	}
 
-	perm := rand.Perm(len(cats))
-	result := make(map[int]string)
-
-	for i := 0; i < 6; i++ {
-		cat := cats[perm[i]]
-		result[cat] = c.categories[cat]
+	perm := rand.Perm(len(cat))
+	for i := 0; i < requested; i++ {
+		cat[i], cat[perm[i]] = cat[perm[i]], cat[i]
 	}
 
 	rw.WriteHeader(http.StatusOK)
-	err := json.NewEncoder(rw).Encode(result)
+	err = json.NewEncoder(rw).Encode(cat[:requested])
 	if err != nil {
 		log.Printf("error serving categories: %s", err)
 	}

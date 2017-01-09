@@ -8,11 +8,14 @@ func New(canvas *dom.HTMLCanvasElement) *S {
 		canvas: canvas,
 		ctx:    canvas.GetContext2d(),
 	}
+
 	s.init()
 	return s
 }
 
 type S struct {
+	OnDraw func()
+
 	canvas *dom.HTMLCanvasElement
 	ctx    *dom.CanvasRenderingContext2D
 
@@ -29,12 +32,22 @@ func (s *S) handleEvent(event string, handler func(x, y int)) {
 	})
 }
 
-func (s *S) init() {
+func (s *S) Resize() {
+	// Make it visually fill the positioned parent
+	s.canvas.Style().SetProperty("width", "100%", "")
+	s.canvas.Style().SetProperty("height", "100%", "")
+	// ...then set the internal size to match
+	s.canvas.Width = int(s.canvas.OffsetWidth())
+	s.canvas.Height = int(s.canvas.OffsetHeight())
+	// stuff
 	s.ctx.LineWidth = 5
 	s.ctx.LineJoin = "round"
 	s.ctx.LineCap = "round"
 	s.ctx.StrokeStyle = "black"
+}
 
+func (s *S) init() {
+	s.Resize()
 	s.handleEvent("mousemove", s.handleMove)
 	s.handleEvent("mousedown", s.handleDown)
 	s.handleEvent("mouseup", s.handleUpOut)
@@ -50,6 +63,9 @@ func (s *S) handleMove(x, y int) {
 }
 
 func (s *S) handleUpOut(x, y int) {
+	if s.drawing && s.OnDraw != nil {
+		s.OnDraw()
+	}
 	s.drawing = false
 	s.ctx.ClosePath()
 }

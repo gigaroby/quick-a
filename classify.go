@@ -74,15 +74,24 @@ func (c *classifyHandler) processImage(dataURL string) (img image.Image, err err
 	return imageutil.ConvertTo(imageutil.ConvertTo(image, imageutil.AlphaAsWhite), color.GrayModel), nil
 }
 
-func (c *classifyHandler) saveOriginal(basePath, category string, pngData []byte) {
+func (c *classifyHandler) saveOriginal(basePath, session, expectedCategory string, pngData []byte) {
+	category := expectedCategory
+	if category == "" {
+		category = "unknown"
+	}
 	dir := filepath.Join(basePath, category)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		log.Printf("error saving original image: %s\n", err)
 		return
 	}
-	h := fnv.New32()
-	h.Write(pngData)
-	name := hex.EncodeToString(h.Sum(nil)) + ".png"
+
+	name := session
+	if session == "" {
+		h := fnv.New32()
+		h.Write(pngData)
+		name = hex.EncodeToString(h.Sum(nil))
+	}
+	name += ".png"
 
 	if err := ioutil.WriteFile(filepath.Join(dir, name), pngData, 0644); err != nil {
 		log.Printf("error saving original image: %s\n", err)
@@ -112,7 +121,7 @@ func prepareImagePOST(endpoint string, imageData []byte) (*http.Request, error) 
 }
 
 func (c *classifyHandler) classify(imageData []byte) (model.Predictions, error) {
-	req, err := prepareImagePOST(c.modelServerURL+"/classify/", imageData)
+	req, err := prepareImagePOST(strings.TrimRight(c.modelServerURL, "/")+"/classify/", imageData)
 	if err != nil {
 		return nil, err
 	}
@@ -122,6 +131,7 @@ func (c *classifyHandler) classify(imageData []byte) (model.Predictions, error) 
 		return nil, err
 	}
 	defer res.Body.Close()
+
 	pred := model.Predictions{}
 	err = json.NewDecoder(res.Body).Decode(&pred)
 	if err != nil {
@@ -132,20 +142,19 @@ func (c *classifyHandler) classify(imageData []byte) (model.Predictions, error) 
 
 func (c *classifyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if err := req.ParseForm(); err != nil {
+		log.Printf("error parsing form: %s\n", err)
 		http.Error(rw, "invalid input data", http.StatusBadRequest)
 		return
 	}
 
 	image, err := c.processImage(req.Form.Get("image"))
 	if err != nil {
+		log.Printf("error processing image: %s\n", err)
 		http.Error(rw, "invalid image", http.StatusBadRequest)
 		return
 	}
-
 	category := req.Form.Get("expected_category")
-	if category == "" {
-		category = "unknown"
-	}
+	session := req.Form.Get("session")
 
 	imageData := new(bytes.Buffer)
 	err = png.Encode(imageData, image)
@@ -155,7 +164,7 @@ func (c *classifyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	go c.saveOriginal("images", category, imageData.Bytes())
+	go c.saveOriginal("images", session, category, imageData.Bytes())
 
 	top3, err := c.classify(imageData.Bytes())
 	if err != nil {
