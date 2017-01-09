@@ -13,7 +13,7 @@ h3 {
     color: black;
 }
 
-span#w_instructions, span#instructions, span#f_correct, span#f_wrong {
+span#w_instructions, span#instructions{
     font-weight: bold;
 }
 

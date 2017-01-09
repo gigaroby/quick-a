@@ -77,8 +77,9 @@ func (s *S) handleDown(x, y int) {
 }
 
 func (s *S) Clear() {
+	// end drawing if a clear is requested
+	s.drawing = false
 	s.ctx.ClearRect(0, 0, s.canvas.Width, s.canvas.Height)
-	// document.getElementById("canvasimg").style.display = "none";
 }
 
 func (s *S) Data() string {
